@@ -1,6 +1,5 @@
 import cv2
 import time
-import queue
 
 class CameraHandler:
     def __init__(self):
