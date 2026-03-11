@@ -2,6 +2,8 @@ import os
 import pickle
 import csv
 from datetime import datetime
+from database import get_connection
+import pickle
 
 class DataManager:
     def __init__(self):
@@ -54,16 +56,19 @@ class DataManager:
                 pass
 
     def save_student(self, name, student_id, course):
-        """Save student record"""
-        try:
-            file_exists = os.path.isfile(self.students_file)
-            with open(self.students_file, 'a', newline='') as f:
-                writer = csv.writer(f)
-                if not file_exists:
-                    writer.writerow(["Name", "Student ID", "Course", "Registration Date"])
-                writer.writerow([name, student_id, course, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
-        except:
-            pass
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        query = """
+        INSERT INTO students (name, student_id, course, registration_date)
+        VALUES (%s, %s, %s, NOW())
+        """
+
+        cursor.execute(query, (name, student_id, course))
+        conn.commit()
+
+        cursor.close()
+        conn.close()
 
     def mark_attendance(self, name, attendance_queue):
         """Add attendance to queue"""
@@ -84,14 +89,44 @@ class DataManager:
                 pass
         return None
 
-    def add_face(self, name, face_encoding):
-        """Add new face to database"""
-        self.known_face_encodings.append(face_encoding)
-        self.known_face_names.append(name)
-        self.known_face_ids.append('')
-        self.save_data()
+def add_face(self, name, face_encoding):
+    conn = get_connection()
+    cursor = conn.cursor()
 
-    def update_student_id(self, name, student_id):
-        """Update student ID for a face"""
-        index = self.known_face_names.index(name)
-        self.known_face_ids[index] = student_id
+    encoding_blob = pickle.dumps(face_encoding)
+
+    query = """
+    INSERT INTO faces (student_name, face_encoding)
+    VALUES (%s,%s)
+    """
+
+    cursor.execute(query, (name, encoding_blob))
+    conn.commit()
+
+    cursor.close()
+    conn.close()
+
+    self.known_face_encodings.append(face_encoding)
+    self.known_face_names.append(name)
+
+def load_faces_from_db(self):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT student_name, face_encoding FROM faces")
+
+    rows = cursor.fetchall()
+
+    for name, encoding_blob in rows:
+        encoding = pickle.loads(encoding_blob)
+
+        self.known_face_names.append(name)
+        self.known_face_encodings.append(encoding)
+
+    cursor.close()
+    conn.close()
+
+def update_student_id(self, name, student_id):
+    """Update student ID for a face"""
+    index = self.known_face_names.index(name)
+    self.known_face_ids[index] = student_id
