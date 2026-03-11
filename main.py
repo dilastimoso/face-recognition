@@ -5,7 +5,22 @@ from PIL import Image, ImageTk
 import queue
 import time
 import os
+import csv
+import sys
+import traceback
 from datetime import datetime
+
+# Add the current directory to path to ensure imports work
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Verify cv2 is imported and working
+try:
+    print(f"OpenCV version: {cv2.__version__}")
+    test_frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    test_converted = cv2.cvtColor(test_frame, cv2.COLOR_BGR2RGBA)
+    print("OpenCV is working properly")
+except Exception as e:
+    print(f"OpenCV initialization error: {e}")
 
 from camera_handler import CameraHandler
 from data_manager import DataManager
@@ -45,6 +60,8 @@ class FaceRecognitionApp:
         self.is_running = True
         self.frame_skip = 0
         self.is_processing = False
+        self.error_count = 0
+        self.consecutive_errors = 0
         
         # Start processes
         self.update_video()
@@ -159,8 +176,8 @@ class FaceRecognitionApp:
                             name, time_str = row[0], row[1]
                             if time_str.startswith(today):
                                 attendance_data.append((name, time_str))
-            except:
-                pass
+            except Exception as e:
+                print(f"Error reading attendance: {e}")
         
         self.attendance_panel.update_display(attendance_data)
 
@@ -180,13 +197,13 @@ class FaceRecognitionApp:
                             if not file_exists:
                                 writer.writerow(["Name", "Time"])
                             writer.writerow([name, dt_string])
-                    except:
-                        pass
+                    except Exception as e:
+                        print(f"Error writing attendance: {e}")
                     
                     self.data_manager.marked_attendance.add(name)
                     self.refresh_attendance_display()
-        except:
-            pass
+        except Exception as e:
+            print(f"Error processing queue: {e}")
         
         self.window.after(1000, self.process_attendance_queue)
 
@@ -195,23 +212,56 @@ class FaceRecognitionApp:
         if not self.is_running:
             return
         
-        self.frame_skip += 1
-        if self.frame_skip % 3 != 0:
-            if self.is_running:
-                self.window.after(10, self.update_video)
-            return
-        
-        success, frame = self.camera_handler.read_frame()
-        
-        if success:
-            if self.frame_skip % 6 == 0:
-                processed_frame = self.face_processor.process_frame(frame)
-            else:
-                processed_frame = frame
+        try:
+            self.frame_skip += 1
+            if self.frame_skip % 3 != 0:
+                if self.is_running:
+                    self.window.after(10, self.update_video)
+                return
             
-            self.canvas.update_frame(processed_frame)
-        else:
-            self.canvas.show_error("Camera Not Available\nPlease check your camera connection")
+            success, frame = self.camera_handler.read_frame()
+            
+            if success:
+                self.consecutive_errors = 0
+                if self.frame_skip % 6 == 0:
+                    try:
+                        processed_frame = self.face_processor.process_frame(frame)
+                    except Exception as e:
+                        print(f"Face processing error: {e}")
+                        processed_frame = frame
+                else:
+                    processed_frame = frame
+                
+                # Direct conversion here as backup if canvas fails
+                try:
+                    self.canvas.update_frame(processed_frame)
+                except Exception as e:
+                    print(f"Canvas update error: {e}")
+                    self.consecutive_errors += 1
+                    
+                    # Try direct conversion as fallback
+                    try:
+                        import cv2
+                        from PIL import Image, ImageTk
+                        cv2image = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGBA)
+                        img = Image.fromarray(cv2image)
+                        photo = ImageTk.PhotoImage(image=img)
+                        self.canvas.canvas.create_image(0, 0, image=photo, anchor=tk.NW)
+                        self.canvas.photo = photo  # Keep reference
+                        self.consecutive_errors = 0
+                    except Exception as e2:
+                        print(f"Fallback also failed: {e2}")
+                        
+                    if self.consecutive_errors > 10:
+                        self.canvas.show_error("Display error - check OpenCV installation")
+            else:
+                self.consecutive_errors += 1
+                if self.consecutive_errors > 30:
+                    self.canvas.show_error("Camera Not Available\nPlease check your camera connection")
+        except Exception as e:
+            print(f"Video update error: {e}")
+            print(traceback.format_exc())
+            self.consecutive_errors += 1
         
         if self.is_running:
             self.window.after(10, self.update_video)
@@ -412,7 +462,8 @@ class FaceRecognitionApp:
         self.window.destroy()
 
 if __name__ == "__main__":
-    import csv  # Add missing import
+    # Add numpy import for testing
+    import numpy as np
     root = tk.Tk()
     app = FaceRecognitionApp(root)
     root.mainloop()
