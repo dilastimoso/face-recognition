@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
+import cv2  # Import at module level
 
 class AttendancePanel:
     def __init__(self, parent, refresh_callback):
@@ -45,14 +46,27 @@ class VideoCanvas:
         self.canvas = tk.Canvas(parent, width=width, height=height, bg='black')
         self.canvas.pack(pady=10)
         self.photo = None
+        # Don't store cv2 as instance variable, we'll import it directly in the method
         
     def update_frame(self, frame):
         """Update canvas with new frame"""
         if frame is not None:
-            cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
-            img = Image.fromarray(cv2image)
-            self.photo = ImageTk.PhotoImage(image=img)
-            self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
+            try:
+                # Import cv2 directly inside the method to ensure it's in scope
+                import cv2
+                from PIL import Image, ImageTk
+                
+                # Convert the frame
+                cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
+                img = Image.fromarray(cv2image)
+                self.photo = ImageTk.PhotoImage(image=img)
+                self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
+            except ImportError as e:
+                print(f"Import error in update_frame: {e}")
+                self.show_error(f"Import error: {str(e)}")
+            except Exception as e:
+                print(f"Error updating frame: {e}")
+                self.show_error(f"Error: {str(e)}")
     
     def show_error(self, message):
         """Show error message on canvas"""
