@@ -72,4 +72,16 @@ class VideoCanvas:
         """Show error message on canvas"""
         self.canvas.delete("all")
         self.canvas.create_text(320, 240, text=message, 
+                               fill="white", font=("Arial", 16), justify=tk.CENTER)                self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
+            except ImportError as e:
+                print(f"Import error in update_frame: {e}")
+                self.show_error(f"Import error: {str(e)}")
+            except Exception as e:
+                print(f"Error updating frame: {e}")
+                self.show_error(f"Error: {str(e)}")
+    
+    def show_error(self, message):
+        """Show error message on canvas"""
+        self.canvas.delete("all")
+        self.canvas.create_text(320, 240, text=message, 
                                fill="white", font=("Arial", 16), justify=tk.CENTER)
